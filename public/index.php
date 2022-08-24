@@ -4,4 +4,4 @@ echo $firstVar;
 
 echo $secondVar;
 
-ecoh $thirdVar;
+echo $thirdVar;

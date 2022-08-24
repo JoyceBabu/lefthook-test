@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+BOLD=
+NORMAL=
+RED=
+USE_COLOR_OUTPUT=0
+
+if [[ ! -z "$TERM" ]] && [[ "$TERM" != "dumb" ]] ; then
+  BOLD=$(tput bold)
+  NORMAL=$(tput sgr0)
+  RED=$(tput setaf 1)
+  USE_COLOR_OUTPUT=1
+fi
+
+print_heading() {
+  echo ""
+  echo "${BOLD}$1${NORMAL}"
+  echo ""
+}
+
+checkout_commit() {
+  git -c advice.detachedHead=false checkout -f $1
+
+  GIT_CLEAN_EXCLUDE=(
+    vendor
+    phpstan-baseline.neon
+  )
+
+  EXCLUDE_FLAGS="${GIT_CLEAN_EXCLUDE[@]/#/-e }"
+
+  print_heading "Clean any existing untracked files"
+  git clean -f -d -x $EXCLUDE_FLAGS
+
+  print_heading "Setup composer packages"
+  composer install $ANSI_FLAG
+}
+
+phpstan_generate_baseline() {
+  checkout_commit $1
+
+  print_heading "Generating PHPStan baseline"
+  ./vendor/bin/phpstan analyse $FLAGS -c phpstan.neon --generate-baseline
+}
+
+phpstan_analyze() {
+  checkout_commit $NEW_SHA
+
+  print_heading "Run static analysis"
+  ./vendor/bin/phpstan analyse $FLAGS -c phpstan-with-baseline.neon
+}
+
+OLD_SHA=$(git rev-parse ${1:-`git merge-base HEAD origin/master`})
+NEW_SHA=$(git rev-parse ${2:-HEAD})
+
+# Create new working tree at ../git-build/<current_directory_name>
+CURRENT_DIRECTORY=$(pwd)
+PROJECT_NAME=$(basename $CURRENT_DIRECTORY)
+TMP_WORK_TREE=${TMP_WORK_TREE:-../git-build/$PROJECT_NAME}
+
+print_heading "Checking out index"
+if [ ! -e "$TMP_WORK_TREE" ]; then
+  git worktree add "$TMP_WORK_TREE" $OLD_SHA
+fi
+
+cd "$TMP_WORK_TREE"
+FLAGS="--memory-limit=2G ${ANSI_FLAG}"
+
+phpstan_generate_baseline $OLD_SHA
+
+phpstan_analyze $NEW_SHA

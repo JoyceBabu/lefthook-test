@@ -52,8 +52,13 @@ phpstan_analyze() {
   ./vendor/bin/phpstan analyse $FLAGS -c phpstan-with-baseline.neon
 }
 
-OLD_SHA=$(git rev-parse ${1:-`git merge-base HEAD origin/master`})
-NEW_SHA=$(git rev-parse ${2:-HEAD})
+if [ "$1" == "--git-hook" ]; then
+  read LOCAL_REF OLD_SHA REMOTE_REF NEW_SHA
+  echo "$LOCAL_REF $OLD_SHA $REMOTE_REF $NEW_SHA"
+else
+  OLD_SHA=$(git rev-parse ${1:-`git merge-base HEAD origin/master`})
+  NEW_SHA=$(git rev-parse ${2:-HEAD})
+fi
 
 # Create new working tree at ../git-build/<current_directory_name>
 CURRENT_DIRECTORY=$(pwd)
